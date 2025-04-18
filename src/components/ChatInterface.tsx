@@ -23,16 +23,27 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ jobTitle }) => {
   const [input, setInput] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
+  const [currentQuestion, setCurrentQuestion] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  // Sample interview questions
+  const interviewQuestions = [
+    `Hi! I'm your AI Interview Coach. I see you're preparing for a ${jobTitle} position. Would you like to start practicing interview questions?`,
+    `Great! Let's start with a common technical question: Can you explain the difference between HTTP and HTTPS?`,
+    `Excellent explanation! Next question: What is the importance of version control systems like Git in software development?`,
+    `Well articulated! Now let's move to algorithms: Can you explain what a binary search is and when you would use it?`,
+    `Very good! Let's try a behavioral question: Tell me about a time when you faced a challenging technical problem and how you solved it.`,
+    `Thank you for sharing that experience! Last question: Where do you see yourself professionally in five years?`
+  ];
 
   useEffect(() => {
     // Add initial welcome message
     if (messages.length === 0) {
       const initialMessage = {
         id: 1,
-        text: `Hi! I'm your AI Interview Coach. I see you're preparing for a ${jobTitle} position. Would you like to start practicing interview questions?`,
-        sender: 'coach',
+        text: interviewQuestions[0],
+        sender: 'coach' as const,
         timestamp: new Date()
       };
       
@@ -125,17 +136,22 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ jobTitle }) => {
     setMessages(prev => [...prev, userMessage]);
     setInput('');
 
-    // Simulate coach response
+    // Stop any current speech before starting new one
+    stopSpeaking();
+    
+    // Progress to the next question when user responds
     setTimeout(() => {
-      // Stop any current speech before starting new one
-      stopSpeaking();
+      // Increment the question counter but don't exceed the available questions
+      const nextQuestion = Math.min(currentQuestion + 1, interviewQuestions.length - 1);
+      setCurrentQuestion(nextQuestion);
       
       const coachResponse: Message = {
         id: messages.length + 2,
-        text: "Great! Let's focus on your technical skills first. Are you ready for the first question?",
+        text: interviewQuestions[nextQuestion],
         sender: 'coach',
         timestamp: new Date()
       };
+      
       setMessages(prev => [...prev, coachResponse]);
       
       // Speak the coach's response
