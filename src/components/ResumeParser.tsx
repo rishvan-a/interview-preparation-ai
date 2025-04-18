@@ -38,12 +38,12 @@ const extractJobTitle = (text: string) => {
 const extractSkills = (text: string) => {
   const commonSkills = [
     "JavaScript", "Python", "React", "Node.js", "SQL", "Java", 
-    "C++", "Machine Learning", "Data Analysis", "Project Management",
+    "C\\+\\+", "Machine Learning", "Data Analysis", "Project Management",
     "UI/UX", "Figma", "Adobe", "Marketing", "SEO", "Content Creation"
   ];
   
   const foundSkills = commonSkills.filter(skill => 
-    new RegExp(`\\b${skill}\\b`, 'i').test(text)
+    new RegExp(`\\b${skill.replace(/[+]/g, '\\+')}\\b`, 'i').test(text)
   );
   
   return foundSkills.length > 0 ? foundSkills : ["JavaScript", "React", "Communication"];

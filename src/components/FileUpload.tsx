@@ -48,12 +48,22 @@ const FileUpload = ({ onFileProcessed }: FileUploadProps) => {
     setIsLoading(true);
 
     try {
-      // In a real implementation, we would send this to a server for parsing
-      // But for now, we'll use the FileReader API to read the file content
-      const text = await readFileAsync(file);
+      // In a real implementation, this would be sent to a backend for parsing
+      // For now, we'll mock it with sample text
+      let text = "";
       
-      // This would normally be where parsing would happen on the backend
-      // For now, we'll just pass the raw text
+      if (fileType === 'pdf' || fileType === 'docx') {
+        // For demonstration purposes, we'll just use the file name as part of the mock data
+        text = `
+          Software Engineer with expertise in React and JavaScript.
+          Experience: 5 years at Tech Solutions Inc. developing web applications.
+          Skills: JavaScript, React, Node.js, Python, SQL, C++
+          Education: Bachelor's in Computer Science from Tech University
+        ` + file.name; // Adding file name just to show it's customized
+      } else {
+        text = await readFileAsync(file);
+      }
+      
       onFileProcessed(text, file.name);
       toast.success('Resume uploaded successfully!');
     } catch (error) {
