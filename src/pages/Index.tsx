@@ -6,6 +6,7 @@ import FileUpload from '@/components/FileUpload';
 import QuestionDisplay from '@/components/QuestionDisplay';
 import EmptyState from '@/components/EmptyState';
 import Header from '@/components/Header';
+import ChatInterface from '@/components/ChatInterface';
 import { Loader2 } from 'lucide-react';
 
 interface ResumeData {
@@ -49,6 +50,12 @@ const Index = () => {
         <section className="mb-12">
           <FileUpload onFileProcessed={handleFileProcessed} />
         </section>
+
+        {resumeData && (
+          <section className="mb-12">
+            <ChatInterface jobTitle={resumeData.jobTitle} />
+          </section>
+        )}
 
         <section id="questions-section" className="mb-8">
           {isGenerating ? (
