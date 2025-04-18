@@ -1,10 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { UserRound, Send } from 'lucide-react';
+import { UserRound, Send, Volume2, VolumeX } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 interface Message {
   id: number;
@@ -20,20 +21,96 @@ interface ChatInterfaceProps {
 const ChatInterface: React.FC<ChatInterfaceProps> = ({ jobTitle }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     // Add initial welcome message
     if (messages.length === 0) {
-      setMessages([
-        {
-          id: 1,
-          text: `Hi! I'm your AI Interview Coach. I see you're preparing for a ${jobTitle} position. Would you like to start practicing interview questions?`,
-          sender: 'coach',
-          timestamp: new Date()
-        }
-      ]);
+      const initialMessage = {
+        id: 1,
+        text: `Hi! I'm your AI Interview Coach. I see you're preparing for a ${jobTitle} position. Would you like to start practicing interview questions?`,
+        sender: 'coach',
+        timestamp: new Date()
+      };
+      
+      setMessages([initialMessage]);
+      speakMessage(initialMessage.text);
     }
   }, [jobTitle]);
+
+  // Scroll to bottom on new message
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Function to handle text-to-speech
+  const speakMessage = (text: string) => {
+    // Stop any currently playing audio
+    if (audio) {
+      audio.pause();
+      setAudio(null);
+    }
+
+    // Use the Web Speech API if available
+    if ('speechSynthesis' in window) {
+      setIsSpeaking(true);
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+      
+      // Try to get a more natural voice
+      const voices = speechSynthesis.getVoices();
+      const preferredVoice = voices.find(voice => 
+        voice.name.includes('Google') || 
+        voice.name.includes('Natural') ||
+        voice.name.includes('Female')
+      );
+      
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
+      
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+        toast({
+          title: "Speech Error",
+          description: "There was a problem with the speech synthesis.",
+          variant: "destructive"
+        });
+      };
+      
+      window.speechSynthesis.speak(utterance);
+    } else {
+      toast({
+        title: "Speech Not Supported",
+        description: "Speech synthesis is not supported in this browser.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Stop speaking
+  const stopSpeaking = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
+    
+    if (audio) {
+      audio.pause();
+      setAudio(null);
+    }
+  };
 
   const handleSendMessage = () => {
     if (!input.trim()) return;
@@ -50,6 +127,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ jobTitle }) => {
 
     // Simulate coach response
     setTimeout(() => {
+      // Stop any current speech before starting new one
+      stopSpeaking();
+      
       const coachResponse: Message = {
         id: messages.length + 2,
         text: "Great! Let's focus on your technical skills first. Are you ready for the first question?",
@@ -57,13 +137,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ jobTitle }) => {
         timestamp: new Date()
       };
       setMessages(prev => [...prev, coachResponse]);
+      
+      // Speak the coach's response
+      speakMessage(coachResponse.text);
     }, 1000);
   };
 
   return (
     <Card className="w-full max-w-3xl mx-auto mb-8">
       <CardContent className="p-6">
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[400px] overflow-y-auto">
           {messages.map((message) => (
             <div
               key={message.id}
@@ -75,7 +158,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ jobTitle }) => {
                 {message.sender === 'coach' && (
                   <Avatar className="h-8 w-8">
                     <AvatarImage src="/coach-avatar.png" alt="AI Coach" />
-                    <AvatarFallback className="bg-coach-500 text-white">
+                    <AvatarFallback className="bg-primary text-white">
                       <UserRound className="h-4 w-4" />
                     </AvatarFallback>
                   </Avatar>
@@ -88,6 +171,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ jobTitle }) => {
                   }`}
                 >
                   {message.text}
+                  {message.sender === 'coach' && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="ml-2 h-6 w-6 rounded-full p-0"
+                      onClick={() => speakMessage(message.text)}
+                    >
+                      <Volume2 className="h-3 w-3" />
+                    </Button>
+                  )}
                 </div>
                 {message.sender === 'user' && (
                   <Avatar className="h-8 w-8">
@@ -99,6 +192,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ jobTitle }) => {
               </div>
             </div>
           ))}
+          <div ref={messagesEndRef} />
         </div>
 
         <div className="flex items-center gap-2 mt-4">
@@ -112,6 +206,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ jobTitle }) => {
           <Button onClick={handleSendMessage} size="icon">
             <Send className="h-4 w-4" />
           </Button>
+          {isSpeaking && (
+            <Button onClick={stopSpeaking} size="icon" variant="outline">
+              <VolumeX className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
