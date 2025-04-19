@@ -24,6 +24,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ jobTitle }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [isWaitingForRetry, setIsWaitingForRetry] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -178,6 +179,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ jobTitle }) => {
     return matchCount >= 2;
   };
 
+  // Check if user wants to skip to the next question
+  const isSkipRequest = (userInput: string) => {
+    const skipPhrases = ['next question', 'skip', 'move on', 'no'];
+    const userInputLower = userInput.toLowerCase().trim();
+    return skipPhrases.some(phrase => userInputLower.includes(phrase));
+  };
+
   const handleSendMessage = () => {
     if (!input.trim()) return;
 
@@ -194,38 +202,115 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ jobTitle }) => {
     // Stop any current speech before starting new one
     stopSpeaking();
     
-    // Evaluate the user's answer
-    const isAnswerAcceptable = evaluateAnswer(input, currentQuestion);
-    
     setTimeout(() => {
-      if (isAnswerAcceptable) {
-        // Proceed to the next question if the answer is acceptable
-        const nextQuestion = Math.min(currentQuestion + 1, interviewQuestions.length - 1);
-        setCurrentQuestion(nextQuestion);
+      // If waiting for retry confirmation and user wants to skip
+      if (isWaitingForRetry && isSkipRequest(input)) {
+        setIsWaitingForRetry(false);
+        const nextQuestion = currentQuestion + 1;
+        if (nextQuestion < interviewQuestions.length) {
+          setCurrentQuestion(nextQuestion);
+          
+          const coachResponse: Message = {
+            id: messages.length + 2,
+            text: interviewQuestions[nextQuestion],
+            sender: 'coach',
+            timestamp: new Date()
+          };
+          
+          setMessages(prev => [...prev, coachResponse]);
+          speakMessage(coachResponse.text);
+        }
+        return;
+      }
+      
+      // Normal flow - evaluate the user's answer
+      if (!isWaitingForRetry) {
+        const isAnswerAcceptable = evaluateAnswer(input, currentQuestion);
         
-        const coachResponse: Message = {
-          id: messages.length + 2,
-          text: interviewQuestions[nextQuestion],
-          sender: 'coach',
-          timestamp: new Date()
-        };
-        
-        setMessages(prev => [...prev, coachResponse]);
-        speakMessage(coachResponse.text);
+        if (isAnswerAcceptable) {
+          // Proceed to the next question if the answer is acceptable
+          const nextQuestion = Math.min(currentQuestion + 1, interviewQuestions.length - 1);
+          setCurrentQuestion(nextQuestion);
+          
+          const coachResponse: Message = {
+            id: messages.length + 2,
+            text: interviewQuestions[nextQuestion],
+            sender: 'coach',
+            timestamp: new Date()
+          };
+          
+          setMessages(prev => [...prev, coachResponse]);
+          speakMessage(coachResponse.text);
+        } else {
+          // Provide feedback and suggestions if the answer needs improvement
+          const feedbackText = answerGuidelines[currentQuestion].feedback;
+          const suggestionText = answerGuidelines[currentQuestion].suggestion;
+          
+          const feedbackMessage: Message = {
+            id: messages.length + 2,
+            text: `${feedbackText}\n\n${suggestionText}\n\nWould you like to try answering this question again?`,
+            sender: 'coach',
+            timestamp: new Date()
+          };
+          
+          setMessages(prev => [...prev, feedbackMessage]);
+          speakMessage(feedbackMessage.text);
+          setIsWaitingForRetry(true);
+        }
       } else {
-        // Provide feedback and suggestions if the answer needs improvement
-        const feedbackText = answerGuidelines[currentQuestion].feedback;
-        const suggestionText = answerGuidelines[currentQuestion].suggestion;
-        
-        const feedbackMessage: Message = {
-          id: messages.length + 2,
-          text: `${feedbackText}\n\n${suggestionText}\n\nWould you like to try answering this question again?`,
-          sender: 'coach',
-          timestamp: new Date()
-        };
-        
-        setMessages(prev => [...prev, feedbackMessage]);
-        speakMessage(feedbackMessage.text);
+        // When already in retry mode, check if user wants to try again
+        if (isSkipRequest(input)) {
+          // User wants to move to the next question
+          setIsWaitingForRetry(false);
+          const nextQuestion = currentQuestion + 1;
+          if (nextQuestion < interviewQuestions.length) {
+            setCurrentQuestion(nextQuestion);
+            
+            const coachResponse: Message = {
+              id: messages.length + 2,
+              text: interviewQuestions[nextQuestion],
+              sender: 'coach',
+              timestamp: new Date()
+            };
+            
+            setMessages(prev => [...prev, coachResponse]);
+            speakMessage(coachResponse.text);
+          }
+        } else {
+          // User is trying again, evaluate new answer
+          const isAnswerAcceptable = evaluateAnswer(input, currentQuestion);
+          
+          if (isAnswerAcceptable) {
+            // Answer is now acceptable, move to next question
+            setIsWaitingForRetry(false);
+            const nextQuestion = Math.min(currentQuestion + 1, interviewQuestions.length - 1);
+            setCurrentQuestion(nextQuestion);
+            
+            const coachResponse: Message = {
+              id: messages.length + 2,
+              text: interviewQuestions[nextQuestion],
+              sender: 'coach',
+              timestamp: new Date()
+            };
+            
+            setMessages(prev => [...prev, coachResponse]);
+            speakMessage(coachResponse.text);
+          } else {
+            // Answer still needs improvement, provide feedback again
+            const feedbackText = answerGuidelines[currentQuestion].feedback;
+            const suggestionText = answerGuidelines[currentQuestion].suggestion;
+            
+            const feedbackMessage: Message = {
+              id: messages.length + 2,
+              text: `${feedbackText}\n\n${suggestionText}\n\nWould you like to try answering this question again?`,
+              sender: 'coach',
+              timestamp: new Date()
+            };
+            
+            setMessages(prev => [...prev, feedbackMessage]);
+            speakMessage(feedbackMessage.text);
+          }
+        }
       }
     }, 1000);
   };
