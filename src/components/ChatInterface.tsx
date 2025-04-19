@@ -37,6 +37,40 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ jobTitle }) => {
     `Thank you for sharing that experience! Last question: Where do you see yourself professionally in five years?`
   ];
 
+  // Sample expected answers and suggestions
+  const answerGuidelines = [
+    { // Welcome message - any affirmative answer is acceptable
+      keywords: ['yes', 'ok', 'sure', 'ready', 'start'],
+      feedback: "I don't recognize your response. Please type 'yes' or 'ok' if you'd like to continue.",
+      suggestion: "To proceed with the interview practice, please confirm by typing 'yes', 'ok', or something similar."
+    },
+    { // HTTP vs HTTPS
+      keywords: ['secure', 'encryption', 'ssl', 'tls', 'certificate', 'https encrypts', 'http is not encrypted'],
+      feedback: "Your answer about HTTP vs HTTPS could be more comprehensive. HTTPS adds security through encryption.",
+      suggestion: "A strong answer would mention that HTTPS uses SSL/TLS encryption to secure data transmission, while HTTP transmits in plaintext. HTTPS uses port 443 and requires certificates, protecting against man-in-the-middle attacks."
+    },
+    { // Git importance
+      keywords: ['version control', 'track changes', 'collaboration', 'history', 'branch', 'merge', 'rollback', 'revert'],
+      feedback: "Your answer about version control systems could be expanded with more specific benefits.",
+      suggestion: "A strong answer would highlight how Git enables tracking code changes, collaboration among developers, branching for parallel development, conflict resolution, and the ability to revert to previous versions if needed."
+    },
+    { // Binary search
+      keywords: ['log n', 'logarithmic', 'sorted', 'divide', 'middle', 'half', 'efficient', 'search algorithm'],
+      feedback: "Your explanation of binary search could include more technical details.",
+      suggestion: "A strong answer would explain that binary search is an efficient O(log n) algorithm for finding elements in sorted arrays. It repeatedly divides the search interval in half, comparing the middle element to the target value. It's ideal for large sorted datasets."
+    },
+    { // Technical challenge
+      keywords: ['problem', 'solution', 'challenge', 'resolved', 'approach', 'teamwork', 'learned'],
+      feedback: "Your response could be structured better using the STAR method (Situation, Task, Action, Result).",
+      suggestion: "A strong answer would describe a specific technical challenge, your approach to solving it, actions taken, and the results achieved. Include technologies used, collaboration involved, and lessons learned."
+    },
+    { // Five-year plan
+      keywords: ['goals', 'growth', 'learn', 'develop', 'lead', 'expertise', 'skills', 'career path'],
+      feedback: "Your career goals could be more specific and aligned with growth in the tech industry.",
+      suggestion: "A strong answer would balance ambition with realism, mentioning technical skills you want to develop, leadership aspirations, and how you plan to grow in your career. Consider discussing specific roles, technologies, or domains you're interested in."
+    }
+  ];
+
   useEffect(() => {
     // Add initial welcome message
     if (messages.length === 0) {
@@ -123,6 +157,27 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ jobTitle }) => {
     }
   };
 
+  // Evaluate user's answer based on keywords
+  const evaluateAnswer = (userInput: string, questionIndex: number) => {
+    if (questionIndex >= answerGuidelines.length) return true;
+    
+    const currentGuideline = answerGuidelines[questionIndex];
+    const userInputLower = userInput.toLowerCase();
+    
+    // For the first question (welcome), any affirmative response is fine
+    if (questionIndex === 0) {
+      return currentGuideline.keywords.some(keyword => userInputLower.includes(keyword));
+    }
+    
+    // For other questions, check if the answer contains at least some of the expected keywords
+    const matchCount = currentGuideline.keywords.filter(keyword => 
+      userInputLower.includes(keyword.toLowerCase())
+    ).length;
+    
+    // Require at least 2 keywords for a passing answer, except for the first question
+    return matchCount >= 2;
+  };
+
   const handleSendMessage = () => {
     if (!input.trim()) return;
 
@@ -139,28 +194,44 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ jobTitle }) => {
     // Stop any current speech before starting new one
     stopSpeaking();
     
-    // Progress to the next question when user responds
+    // Evaluate the user's answer
+    const isAnswerAcceptable = evaluateAnswer(input, currentQuestion);
+    
     setTimeout(() => {
-      // Increment the question counter but don't exceed the available questions
-      const nextQuestion = Math.min(currentQuestion + 1, interviewQuestions.length - 1);
-      setCurrentQuestion(nextQuestion);
-      
-      const coachResponse: Message = {
-        id: messages.length + 2,
-        text: interviewQuestions[nextQuestion],
-        sender: 'coach',
-        timestamp: new Date()
-      };
-      
-      setMessages(prev => [...prev, coachResponse]);
-      
-      // Speak the coach's response
-      speakMessage(coachResponse.text);
+      if (isAnswerAcceptable) {
+        // Proceed to the next question if the answer is acceptable
+        const nextQuestion = Math.min(currentQuestion + 1, interviewQuestions.length - 1);
+        setCurrentQuestion(nextQuestion);
+        
+        const coachResponse: Message = {
+          id: messages.length + 2,
+          text: interviewQuestions[nextQuestion],
+          sender: 'coach',
+          timestamp: new Date()
+        };
+        
+        setMessages(prev => [...prev, coachResponse]);
+        speakMessage(coachResponse.text);
+      } else {
+        // Provide feedback and suggestions if the answer needs improvement
+        const feedbackText = answerGuidelines[currentQuestion].feedback;
+        const suggestionText = answerGuidelines[currentQuestion].suggestion;
+        
+        const feedbackMessage: Message = {
+          id: messages.length + 2,
+          text: `${feedbackText}\n\n${suggestionText}\n\nWould you like to try answering this question again?`,
+          sender: 'coach',
+          timestamp: new Date()
+        };
+        
+        setMessages(prev => [...prev, feedbackMessage]);
+        speakMessage(feedbackMessage.text);
+      }
     }, 1000);
   };
 
   return (
-    <Card className="w-full max-w-3xl mx-auto mb-8">
+    <Card className="w-full max-w-3xl mx-auto mb-8 animate-fade-in">
       <CardContent className="p-6">
         <div className="space-y-4 max-h-[400px] overflow-y-auto">
           {messages.map((message) => (
